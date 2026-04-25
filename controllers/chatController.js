@@ -1,4 +1,4 @@
-const Message = require("../models/Message");
+const Message = require("../models/message");
 const Group = require("../models/group"); // Match group.js lowercase
 
 // SEND MESSAGE IN GROUP
