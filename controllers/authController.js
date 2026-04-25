@@ -23,17 +23,41 @@ exports.registerUser = async (req, res) => {
     const validRoles = ["student", "admin"];
     const userRole = validRoles.includes(role) ? role : "student";
 
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpExpires = Date.now() + 10 * 60 * 1000; // 10 mins
+
     user = new User({
       name,
       email,
       password: hashedPassword,
       role: userRole,
       course: course || "",
-      university: university || ""
+      university: university || "",
+      otp,
+      otpExpires,
+      isVerified: false
     });
     await user.save();
 
-    res.json({ msg: "User registered successfully" });
+    // Send verification email
+    await sendEmail({
+      email: user.email,
+      subject: "UniLink Registration Verification",
+      message: `Your verification code is: ${otp}. It expires in 10 minutes.`,
+      html: `
+        <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+          <h2 style="color: #14b8a6;">UniLink Verification</h2>
+          <p>Hello ${user.name},</p>
+          <p>Thank you for registering! Your verification code is:</p>
+          <h1 style="background: #f0fdf4; padding: 10px; color: #14b8a6; text-align: center; border-radius: 5px; letter-spacing: 5px;">${otp}</h1>
+          <p>This code expires in 10 minutes.</p>
+          <p>If you didn't request this, please ignore this email.</p>
+        </div>
+      `,
+    });
+
+    res.json({ msg: "OTP sent to email for verification", otpRequired: true, email: user.email });
   } catch (err) {
     console.error(err);
     res.status(500).send("Server error");
@@ -95,9 +119,10 @@ exports.verifyOTP = async (req, res) => {
       return res.status(400).json({ msg: "Invalid or expired OTP" });
     }
 
-    // Clear OTP after success
+    // Clear OTP after success and mark as verified
     user.otp = undefined;
     user.otpExpires = undefined;
+    user.isVerified = true;
     await user.save();
 
     const token = jwt.sign(

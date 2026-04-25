@@ -5,6 +5,7 @@ const userSchema = new mongoose.Schema({
   email: { type: String, unique: true },
   password: String,
   role: { type: String, default: "student" },
+  isVerified: { type: Boolean, default: false },
   isBanned: { type: Boolean, default: false },
   profilePicture: { type: String, default: "" },
 
