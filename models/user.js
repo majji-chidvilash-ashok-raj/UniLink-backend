@@ -18,7 +18,9 @@ const userSchema = new mongoose.Schema({
   bio: { type: String, default: "" },
   isBanned: { type: Boolean, default: false },
   otp: { type: String },
-  otpExpires: { type: Date }
+  otpExpires: { type: Date },
+  resetPasswordToken: { type: String },
+  resetPasswordExpires: { type: Date }
 }, { timestamps: true });
 
 const User = mongoose.models.User || mongoose.model("User", userSchema);
