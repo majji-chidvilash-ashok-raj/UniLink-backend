@@ -1,4 +1,5 @@
 const User = require("../models/user");
+const PendingUser = require("../models/pendingUser");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
@@ -13,51 +14,50 @@ exports.registerUser = async (req, res) => {
       return res.status(400).json({ msg: `Only students from SRM AP (${allowedDomain}) can register.` });
     }
 
+    // Check if user already exists in main collection
     let user = await User.findOne({ email });
     if (user) return res.status(400).json({ msg: "User already exists" });
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Save role from request — defaults to 'student' if not provided
     const validRoles = ["student", "admin"];
     const userRole = validRoles.includes(role) ? role : "student";
 
-    // Generate 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const otpExpires = Date.now() + 10 * 60 * 1000; // 10 mins
+    const otpExpires = Date.now() + 10 * 60 * 1000;
 
-    user = new User({
-      name,
-      email,
-      password: hashedPassword,
-      role: userRole,
-      course: course || "",
-      university: university || "",
-      otp,
-      otpExpires,
-      isVerified: false
-    });
-    await user.save();
+    // Save to PendingUser instead of User
+    await PendingUser.findOneAndUpdate(
+      { email },
+      {
+        name,
+        email,
+        password: hashedPassword,
+        role: userRole,
+        course: course || "",
+        university: university || "",
+        otp,
+        otpExpires
+      },
+      { upsert: true, new: true }
+    );
 
-    // Send verification email
     await sendEmail({
-      email: user.email,
+      email,
       subject: "UniLink Registration Verification",
-      message: `Your verification code is: ${otp}. It expires in 10 minutes.`,
+      message: `Your verification code is: ${otp}.`,
       html: `
         <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
           <h2 style="color: #14b8a6;">UniLink Verification</h2>
-          <p>Hello ${user.name},</p>
-          <p>Thank you for registering! Your verification code is:</p>
+          <p>Hello ${name},</p>
+          <p>Complete your registration using this code:</p>
           <h1 style="background: #f0fdf4; padding: 10px; color: #14b8a6; text-align: center; border-radius: 5px; letter-spacing: 5px;">${otp}</h1>
-          <p>This code expires in 10 minutes.</p>
-          <p>If you didn't request this, please ignore this email.</p>
         </div>
       `,
     });
 
-    res.json({ msg: "OTP sent to email for verification", otpRequired: true, email: user.email });
+    res.json({ msg: "OTP sent to email", otpRequired: true, email });
   } catch (err) {
     console.error(err);
     res.status(500).send("Server error");
@@ -113,16 +113,44 @@ exports.verifyOTP = async (req, res) => {
   const { email, otp } = req.body;
 
   try {
-    const user = await User.findOne({ email });
+    // 1. Check if it's a new registration
+    const pendingUser = await PendingUser.findOne({ email });
+    if (pendingUser) {
+      if (pendingUser.otp !== otp || pendingUser.otpExpires < Date.now()) {
+        return res.status(400).json({ msg: "Invalid or expired OTP" });
+      }
 
+      // Create actual user
+      const user = new User({
+        name: pendingUser.name,
+        email: pendingUser.email,
+        password: pendingUser.password,
+        role: pendingUser.role,
+        course: pendingUser.course,
+        university: pendingUser.university,
+        isVerified: true
+      });
+
+      await user.save();
+      await PendingUser.deleteOne({ email });
+
+      const token = jwt.sign(
+        { id: user._id, role: user.role, name: user.name },
+        "secretkey",
+        { expiresIn: "1h" }
+      );
+
+      return res.json({ token, user: { id: user._id, role: user.role, name: user.name } });
+    }
+
+    // 2. Check if it's a login verification
+    const user = await User.findOne({ email });
     if (!user || user.otp !== otp || user.otpExpires < Date.now()) {
       return res.status(400).json({ msg: "Invalid or expired OTP" });
     }
 
-    // Clear OTP after success and mark as verified
     user.otp = undefined;
     user.otpExpires = undefined;
-    user.isVerified = true;
     await user.save();
 
     const token = jwt.sign(
