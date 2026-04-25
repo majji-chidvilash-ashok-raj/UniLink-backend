@@ -5,7 +5,7 @@ const crypto = require("crypto");
 const sendEmail = require("../utils/sendEmail");
 
 exports.registerUser = async (req, res) => {
-  const { name, email, password, role } = req.body;
+  const { name, email, password, role, course, university } = req.body;
 
   try {
     const allowedDomain = "@srmap.edu.in";
@@ -23,7 +23,14 @@ exports.registerUser = async (req, res) => {
     const validRoles = ["student", "admin"];
     const userRole = validRoles.includes(role) ? role : "student";
 
-    user = new User({ name, email, password: hashedPassword, role: userRole });
+    user = new User({
+      name,
+      email,
+      password: hashedPassword,
+      role: userRole,
+      course: course || "",
+      university: university || ""
+    });
     await user.save();
 
     res.json({ msg: "User registered successfully" });

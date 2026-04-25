@@ -15,6 +15,7 @@ const userSchema = new mongoose.Schema({
     { type: mongoose.Schema.Types.ObjectId, ref: "User" }
   ],
   university: { type: String, default: "" },
+  course: { type: String, default: "" },
   bio: { type: String, default: "" },
   isBanned: { type: Boolean, default: false },
   otp: { type: String },
