@@ -10,6 +10,11 @@ const messageSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: "Group",
   },
+  
+  receiver: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+  },
 
   text: String,
 

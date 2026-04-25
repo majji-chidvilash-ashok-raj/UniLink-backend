@@ -6,6 +6,11 @@ exports.registerUser = async (req, res) => {
   const { name, email, password, role } = req.body;
 
   try {
+    const allowedDomain = "@srmap.edu.in";
+    if (!email.endsWith(allowedDomain)) {
+      return res.status(400).json({ msg: `Only students from SRM AP (${allowedDomain}) can register.` });
+    }
+
     let user = await User.findOne({ email });
     if (user) return res.status(400).json({ msg: "User already exists" });
 
@@ -39,14 +44,63 @@ exports.loginUser = async (req, res) => {
   return res.status(403).json({ msg: "User is banned" });
 }
 
-   const token = jwt.sign(
-  { id: user._id, role: user.role },  // ✅ ADD ROLE
-  "secretkey",
-  { expiresIn: "1h" }
-);
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpExpires = Date.now() + 10 * 60 * 1000; // 10 mins
 
-    res.json({ token });
+    user.otp = otp;
+    user.otpExpires = otpExpires;
+    await user.save();
+
+    // Send email
+    const sendEmail = require("../utils/sendEmail");
+    await sendEmail({
+      email: user.email,
+      subject: "UniLink Login Verification",
+      message: `Your verification code is: ${otp}. It expires in 10 minutes.`,
+      html: `
+        <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+          <h2 style="color: #14b8a6;">UniLink Verification</h2>
+          <p>Hello ${user.name},</p>
+          <p>Your one-time password for login is:</p>
+          <h1 style="background: #f0fdf4; padding: 10px; color: #14b8a6; text-align: center; border-radius: 5px; letter-spacing: 5px;">${otp}</h1>
+          <p>This code expires in 10 minutes.</p>
+          <p>If you didn't request this, please ignore this email.</p>
+        </div>
+      `,
+    });
+
+    res.json({ otpRequired: true, email: user.email });
   } catch (err) {
-    res.status(500).send("Server error");
+    console.error(err);
+    res.status(500).json({ msg: "Server error" });
+  }
+};
+
+exports.verifyOTP = async (req, res) => {
+  const { email, otp } = req.body;
+
+  try {
+    const user = await User.findOne({ email });
+
+    if (!user || user.otp !== otp || user.otpExpires < Date.now()) {
+      return res.status(400).json({ msg: "Invalid or expired OTP" });
+    }
+
+    // Clear OTP after success
+    user.otp = undefined;
+    user.otpExpires = undefined;
+    await user.save();
+
+    const token = jwt.sign(
+      { id: user._id, role: user.role, name: user.name },
+      "secretkey",
+      { expiresIn: "1h" }
+    );
+
+    res.json({ token, user: { id: user._id, role: user.role, name: user.name } });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ msg: "Server error" });
   }
 };

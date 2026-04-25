@@ -1,4 +1,6 @@
 const Event = require("../models/event");
+const User = require("../models/user");
+const { sendRegistrationEmail } = require("../utils/emailService");
 
 exports.createEvent = async (req, res) => {
   try {
@@ -41,6 +43,16 @@ exports.joinEvent = async (req, res) => {
 
     event.participants.push(req.user.id);
     await event.save();
+
+    // Fetch user details for email
+    const user = await User.findById(req.user.id);
+    if (user && user.email) {
+      const dateStr = new Date(event.date).toLocaleDateString('en-US', { 
+        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
+      });
+      // Fire and forget (don't block the response)
+      sendRegistrationEmail(user.email, user.name, event.eventName, dateStr, event.location);
+    }
 
     // Return populated event
     const updatedEvent = await Event.findById(req.params.id).populate("participants", "name email");

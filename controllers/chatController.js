@@ -1,5 +1,5 @@
 const Message = require("../models/Message");
-const Group = require("../models/Group");
+const Group = require("../models/group"); // Match group.js lowercase
 
 // SEND MESSAGE IN GROUP
 exports.sendGroupMessage = async (req, res) => {
@@ -39,11 +39,108 @@ exports.getGroupMessages = async (req, res) => {
       groupId: req.params.groupId,
     })
       .sort({ createdAt: 1 })
-      .populate("sender", "name");
+      .populate("sender", "name profilePicture");
 
     res.json(messages);
   } catch (err) {
     console.error(err);
-    res.status(500).send("Server error");
+    res.status(500).json({ msg: "Server error" });
+  }
+};
+
+// SEND DIRECT MESSAGE
+exports.sendDirectMessage = async (req, res) => {
+  try {
+    const { text } = req.body;
+    const receiverId = req.params.receiverId;
+
+    const message = new Message({
+      sender: req.user.id,
+      receiver: receiverId,
+      text,
+    });
+
+    await message.save();
+    const populated = await Message.findById(message._id).populate("sender", "name profilePicture");
+    res.json(populated);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ msg: "Server error" });
+  }
+};
+
+// GET DIRECT MESSAGES
+exports.getDirectMessages = async (req, res) => {
+  try {
+    const { receiverId } = req.params;
+    const messages = await Message.find({
+      $or: [
+        { sender: req.user.id, receiver: receiverId },
+        { sender: receiverId, receiver: req.user.id },
+      ],
+    })
+      .sort({ createdAt: 1 })
+      .populate("sender", "name profilePicture")
+      .populate("receiver", "name profilePicture");
+
+    res.json(messages);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ msg: "Server error" });
+  }
+};
+
+// GET ALL CONVERSATIONS (PEOPLE AND GROUPS)
+exports.getConversations = async (req, res) => {
+  try {
+    // This is a bit simplified - in a real app you'd use a Conversation model
+    const myId = req.user.id;
+    
+    // Find all unique users I've messaged or who messaged me
+    const messages = await Message.find({
+      $or: [{ sender: myId }, { receiver: myId }]
+    })
+    .sort({ createdAt: -1 })
+    .populate("sender", "name profilePicture")
+    .populate("receiver", "name profilePicture");
+
+    const usersMap = new Map();
+    messages.forEach(m => {
+      // For individual chats, get the OTHER user
+      if (!m.groupId) {
+        const otherUser = m.sender?._id?.toString() === myId ? m.receiver : m.sender;
+        if (otherUser && !usersMap.has(otherUser._id.toString())) {
+          usersMap.set(otherUser._id.toString(), {
+            _id: otherUser._id,
+            name: otherUser.name,
+            profilePicture: otherUser.profilePicture,
+            lastMessage: m.text,
+            updatedAt: m.createdAt,
+            type: 'individual'
+          });
+        }
+      }
+    });
+
+    // Also get my groups
+    const groups = await Group.find({ "members.userId": myId });
+    const groupConversations = groups.map(g => ({
+      _id: g._id,
+      name: g.groupName, // Corrected from g.name
+      type: 'group',
+      updatedAt: g.updatedAt // Or last message time
+    }));
+
+    const allConversations = [...Array.from(usersMap.values()), ...groupConversations];
+    allConversations.sort((a, b) => {
+      const dateA = a.updatedAt ? new Date(a.updatedAt) : new Date(0);
+      const dateB = b.updatedAt ? new Date(b.updatedAt) : new Date(0);
+      return dateB - dateA;
+    });
+
+    res.json(allConversations);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ msg: "Server error" });
   }
 };

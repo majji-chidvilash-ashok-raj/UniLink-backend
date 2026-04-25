@@ -24,8 +24,46 @@ exports.getStats = async (req, res) => {
       Group.countDocuments()
     ]);
     
-    const recentUsers = await User.find().sort({ _id: -1 }).limit(5).select("name email role createdAt");
-    const bannedUsers = await User.countDocuments({ isBanned: true });
+    const recentUsers = await User.find().sort({ createdAt: -1 }).limit(5).select("name email role createdAt");
+    const bannedUsersCount = await User.countDocuments({ isBanned: true });
+
+    // Calculate User Growth (last 7 days)
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    
+    const growthData = await User.aggregate([
+      { $match: { createdAt: { $gte: sevenDaysAgo } } },
+      {
+        $group: {
+          _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { "_id": 1 } }
+    ]);
+
+    // Fill in zeros for days with no signups
+    const growthArray = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().split('T')[0];
+      const match = growthData.find(g => g._id === dateStr);
+      growthArray.push(match ? match.count : 0);
+    }
+
+    // Compile Recent Activity
+    const [latestUsers, latestPosts, latestEvents] = await Promise.all([
+      User.find().sort({ createdAt: -1 }).limit(3).select("name createdAt"),
+      Post.find().sort({ createdAt: -1 }).limit(3).populate("userId", "name").select("createdAt"),
+      Event.find().sort({ createdAt: -1 }).limit(3).select("eventName createdAt")
+    ]);
+
+    const activity = [
+      ...latestUsers.map(u => ({ action: "New user registered", detail: u.name, time: u.createdAt, type: "user" })),
+      ...latestPosts.map(p => ({ action: "New post created", detail: `By ${p.userId?.name || 'Unknown'}`, time: p.createdAt, type: "post" })),
+      ...latestEvents.map(e => ({ action: "New event launched", detail: e.eventName, time: e.createdAt, type: "event" }))
+    ].sort((a, b) => new Date(b.time) - new Date(a.time)).slice(0, 10);
 
     res.json({
       counts: {
@@ -33,9 +71,11 @@ exports.getStats = async (req, res) => {
         posts: postCount,
         events: eventCount,
         groups: groupCount,
-        banned: bannedUsers
+        banned: bannedUsersCount
       },
-      recentUsers
+      recentUsers,
+      userGrowth: growthArray,
+      recentActivity: activity
     });
   } catch (err) {
     console.error(err);

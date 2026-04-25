@@ -1,4 +1,4 @@
-const Group = require("../models/Group");
+const Group = require("../models/group");
 
 exports.createGroup = async (req, res) => {
   try {
@@ -24,8 +24,25 @@ exports.createGroup = async (req, res) => {
 
 exports.getGroups = async (req, res) => {
   try {
-    const groups = await Group.find();
+    let groups = await Group.find().populate("members.userId", "name email profilePicture university");
+    // Filter out members whose userId might be null (e.g. deleted users)
+    groups = groups.map(g => {
+      const gObj = g.toObject();
+      gObj.members = gObj.members.filter(m => m.userId != null);
+      return gObj;
+    });
     res.json(groups);
+  } catch (err) {
+    res.status(500).send("Server error");
+  }
+};
+
+exports.deleteGroup = async (req, res) => {
+  try {
+    const group = await Group.findById(req.params.id);
+    if (!group) return res.status(404).json({ msg: "Group not found" });
+    await group.deleteOne();
+    res.json({ msg: "Group deleted successfully" });
   } catch (err) {
     res.status(500).send("Server error");
   }
@@ -36,7 +53,7 @@ exports.joinGroup = async (req, res) => {
     const group = await Group.findById(req.params.id);
 
     const isMember = group.members.find(
-      (m) => m.userId.toString() === req.user.id
+      (m) => m.userId && m.userId.toString() === req.user.id
     );
 
     if (isMember) {
@@ -66,7 +83,7 @@ exports.addUserToGroup = async (req, res) => {
     }
 
     const alreadyMember = group.members.find(
-      (m) => m.userId.toString() === userId
+      (m) => m.userId && m.userId.toString() === userId
     );
 
     if (alreadyMember) {

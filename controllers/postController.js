@@ -2,28 +2,34 @@ const Post = require("../models/post");
 
 exports.createPost = async (req, res) => {
   try {
+    console.log("Create Post - Body:", req.body);
+    console.log("Create Post - File:", req.file);
     const content = req.body.content;
 
     const post = new Post({
       userId: req.user.id,
       content,
-      image: req.file ? req.file.path : null,
+      image: req.file ? (req.file.path || req.file.filename) : null,
     });
 
     await post.save();
-    res.json(post);
+    const populatedPost = await Post.findById(post._id).populate("userId", "name profilePicture");
+    res.json(populatedPost);
   } catch (err) {
-  console.error(err);   // 🔥 THIS LINE
-  res.status(500).send(err.message);
-}
+    console.error(err);
+    res.status(500).json({ msg: err.message });
+  }
 };
 
 exports.getPosts = async (req, res) => {
   try {
-    const posts = await Post.find().populate("userId", "name");
+    const posts = await Post.find()
+      .populate("userId", "name profilePicture")
+      .populate("comments.userId", "name profilePicture")
+      .sort({ createdAt: -1 });
     res.json(posts);
-  } catch (err) {
-    res.status(500).send("Server error");
+    } catch (err) {
+    res.status(500).json({ msg: "Server error" });
   }
 };
 
@@ -38,7 +44,10 @@ exports.likePost = async (req, res) => {
     post.likes.push(req.user.id);
     await post.save();
 
-    res.json(post);
+    const updatedPost = await Post.findById(req.params.id)
+      .populate("userId", "name profilePicture")
+      .populate("comments.userId", "name profilePicture");
+    res.json(updatedPost);
   } catch (err) {
     res.status(500).send("Server error");
   }
@@ -57,7 +66,10 @@ exports.commentPost = async (req, res) => {
 
     await post.save();
 
-    res.json(post);
+    const updatedPost = await Post.findById(req.params.id)
+      .populate("userId", "name profilePicture")
+      .populate("comments.userId", "name profilePicture");
+    res.json(updatedPost);
   } catch (err) {
     res.status(500).send("Server error");
   }
@@ -82,6 +94,6 @@ exports.deletePost = async (req, res) => {
     res.json({ msg: "Post deleted successfully" });
   } catch (err) {
     console.error(err);
-    res.status(500).send("Server error");
+    res.status(500).json({ msg: "Server error" });
   }
 };

@@ -6,6 +6,7 @@ const userSchema = new mongoose.Schema({
   password: String,
   role: { type: String, default: "student" },
   isBanned: { type: Boolean, default: false },
+  profilePicture: { type: String, default: "" },
 
   connections: [
     { type: mongoose.Schema.Types.ObjectId, ref: "User" }
@@ -15,6 +16,9 @@ const userSchema = new mongoose.Schema({
   ],
   university: { type: String, default: "" },
   bio: { type: String, default: "" },
+  isBanned: { type: Boolean, default: false },
+  otp: { type: String },
+  otpExpires: { type: Date }
 }, { timestamps: true });
 
 const User = mongoose.models.User || mongoose.model("User", userSchema);

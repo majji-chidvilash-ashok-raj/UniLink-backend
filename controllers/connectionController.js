@@ -111,28 +111,30 @@ exports.discoverUsers = async (req, res) => {
     // 3. Have not received a request from current user
     // 4. Have not sent a request to current user
 
-    const excludedIds = [
-      req.user.id,
-      ...currentUser.connections,
-      ...currentUser.requests
-    ];
-
-    // Also need to exclude users current user has SENT requests TO
-    // But our schema stores requests on the TARGET user. 
-    // So we find users who have current user in THEIR requests array.
-
-    const usersWithMyRequest = await User.find({ requests: req.user.id }, '_id');
-    const myRequestIds = usersWithMyRequest.map(u => u._id.toString());
-
-    const allExcluded = [...excludedIds, ...myRequestIds];
+    const excludedIds = [req.user.id, ...currentUser.connections];
 
     const users = await User.find({
-      _id: { $nin: allExcluded },
+      _id: { $nin: excludedIds },
       role: 'student',
       isBanned: false
-    }).select("name email university");
+    }).select("name email university profilePicture requests");
 
-    res.json(users);
+    // Add status to each user
+    const formattedUsers = users.map(u => {
+      const uObj = u.toObject();
+      let status = 'none';
+      if (u.requests.some(rid => rid.toString() === req.user.id)) {
+        status = 'sent';
+      } else if (currentUser.requests.some(rid => rid.toString() === u._id.toString())) {
+        status = 'received';
+      }
+      return {
+        ...uObj,
+        status
+      };
+    });
+
+    res.json(formattedUsers);
   } catch (err) {
     console.error(err);
     res.status(500).send("Server error");
