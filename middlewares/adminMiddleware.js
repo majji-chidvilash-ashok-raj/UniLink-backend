@@ -1,13 +1,1 @@
-const adminMiddleware = (req, res, next) => {
-  try {
-    if (req.user.role !== "admin") {
-      return res.status(403).json({ msg: "Access denied. Admin only." });
-    }
-
-    next();
-  } catch (err) {
-    res.status(500).send("Server error");
-  }
-};
-
-module.exports = adminMiddleware;
+const adminMiddleware = (req, res, next) => {  try {    if (req.user.role !== "admin") {      return res.status(403).json({ msg: "Access denied. Admin only." });    }    next();  } catch (err) {    res.status(500).send("Server error");  }};module.exports = adminMiddleware;

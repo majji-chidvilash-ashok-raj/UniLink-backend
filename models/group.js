@@ -1,5 +1,4 @@
 const mongoose = require('mongoose')
-
 const groupSchema = new mongoose.Schema({
   groupName: String,
   description: String,
@@ -10,5 +9,4 @@ const groupSchema = new mongoose.Schema({
     },
   ],
 }, { timestamps: true });
-
 module.exports = mongoose.models.Group || mongoose.model('Group', groupSchema)

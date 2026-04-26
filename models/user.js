@@ -1,5 +1,4 @@
 const mongoose = require("mongoose");
-
 const userSchema = new mongoose.Schema({
   name: String,
   email: { type: String, unique: true },
@@ -8,7 +7,6 @@ const userSchema = new mongoose.Schema({
   isVerified: { type: Boolean, default: false },
   isBanned: { type: Boolean, default: false },
   profilePicture: { type: String, default: "" },
-
   connections: [
     { type: mongoose.Schema.Types.ObjectId, ref: "User" }
   ],
@@ -24,7 +22,5 @@ const userSchema = new mongoose.Schema({
   resetPasswordToken: { type: String },
   resetPasswordExpires: { type: Date }
 }, { timestamps: true });
-
 const User = mongoose.models.User || mongoose.model("User", userSchema);
-
 module.exports = User;

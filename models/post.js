@@ -1,5 +1,4 @@
 const mongoose = require('mongoose')
-
 const postSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   content: String,
@@ -13,5 +12,4 @@ const postSchema = new mongoose.Schema({
     },
   ],
 }, { timestamps: true });
-
 module.exports = mongoose.models.Post || mongoose.model('Post', postSchema)
