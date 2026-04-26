@@ -14,7 +14,6 @@ exports.registerUser = async (req, res) => {
       return res.status(400).json({ msg: `Only students from SRM AP (${allowedDomain}) can register.` });
     }
 
-    // Check if user already exists in main collection
     let user = await User.findOne({ email });
     if (user) return res.status(400).json({ msg: "User already exists" });
 
@@ -27,7 +26,7 @@ exports.registerUser = async (req, res) => {
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const otpExpires = Date.now() + 10 * 60 * 1000;
 
-    // Save to PendingUser instead of User
+
     await PendingUser.findOneAndUpdate(
       { email },
       {
@@ -113,14 +112,12 @@ exports.verifyOTP = async (req, res) => {
   const { email, otp } = req.body;
 
   try {
-    // 1. Check if it's a new registration
     const pendingUser = await PendingUser.findOne({ email });
     if (pendingUser) {
       if (pendingUser.otp !== otp || pendingUser.otpExpires < Date.now()) {
         return res.status(400).json({ msg: "Invalid or expired OTP" });
       }
 
-      // Create actual user
       const user = new User({
         name: pendingUser.name,
         email: pendingUser.email,
@@ -140,10 +137,21 @@ exports.verifyOTP = async (req, res) => {
         { expiresIn: "1h" }
       );
 
-      return res.json({ token, user: { id: user._id, role: user.role, name: user.name } });
+      return res.json({ 
+        token, 
+        user: { 
+          id: user._id, 
+          role: user.role, 
+          name: user.name,
+          email: user.email,
+          university: user.university,
+          course: user.course,
+          profilePicture: user.profilePicture,
+          bio: user.bio
+        } 
+      });
     }
 
-    // 2. Check if it's a login verification
     const user = await User.findOne({ email });
     if (!user || user.otp !== otp || user.otpExpires < Date.now()) {
       return res.status(400).json({ msg: "Invalid or expired OTP" });
@@ -159,7 +167,19 @@ exports.verifyOTP = async (req, res) => {
       { expiresIn: "1h" }
     );
 
-    res.json({ token, user: { id: user._id, role: user.role, name: user.name } });
+    res.json({ 
+      token, 
+      user: { 
+        id: user._id, 
+        role: user.role, 
+        name: user.name,
+        email: user.email,
+        university: user.university,
+        course: user.course,
+        profilePicture: user.profilePicture,
+        bio: user.bio
+      } 
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ msg: "Server error" });
