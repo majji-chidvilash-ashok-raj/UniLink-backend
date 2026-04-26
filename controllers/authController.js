@@ -137,18 +137,18 @@ exports.verifyOTP = async (req, res) => {
         { expiresIn: "1h" }
       );
 
-      return res.json({ 
-        token, 
-        user: { 
-          id: user._id, 
-          role: user.role, 
+      return res.json({
+        token,
+        user: {
+          id: user._id,
+          role: user.role,
           name: user.name,
           email: user.email,
           university: user.university,
           course: user.course,
           profilePicture: user.profilePicture,
           bio: user.bio
-        } 
+        }
       });
     }
 
@@ -167,18 +167,18 @@ exports.verifyOTP = async (req, res) => {
       { expiresIn: "1h" }
     );
 
-    res.json({ 
-      token, 
-      user: { 
-        id: user._id, 
-        role: user.role, 
+    res.json({
+      token,
+      user: {
+        id: user._id,
+        role: user.role,
         name: user.name,
         email: user.email,
         university: user.university,
         course: user.course,
         profilePicture: user.profilePicture,
         bio: user.bio
-      } 
+      }
     });
   } catch (err) {
     console.error(err);
@@ -195,10 +195,9 @@ exports.forgotPassword = async (req, res) => {
       return res.status(404).json({ msg: "User not found" });
     }
 
-    // Generate 6-digit OTP for password reset
     const resetOTP = Math.floor(100000 + Math.random() * 900000).toString();
     user.resetPasswordToken = resetOTP;
-    user.resetPasswordExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+    user.resetPasswordExpires = Date.now() + 10 * 60 * 1000;
 
     await user.save();
 
